@@ -11,3 +11,5 @@ Compiles BrainFuck code into a Windows executable:
 If `output` is not passed, BrainFExec automatically decides the file name: For example, if the input BrainFuck filename is `a.bf`, it sets the output file to `a.exe`.
 ## How it works
 It first converts BrainFuck to C#, then uses dynamic compiling to compile the resulting C# program to an executable.
+## Requires
+.NET < 5
