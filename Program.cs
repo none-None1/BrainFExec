@@ -2,6 +2,11 @@
 using System.CodeDom.Compiler;
 using Microsoft.CSharp;
 using System.IO;
+using System.Runtime.Serialization.Formatters;
+using System.Linq;
+using System.Collections.Generic;
+using System.Runtime.Remoting.Messaging;
+
 namespace BrainFexec
 {
     internal class Program
@@ -9,7 +14,13 @@ namespace BrainFexec
         private static string code = "", fn = "";
         static void Main(string[] args)
         {
-            switch (args.Length)
+            int len = args.Length;
+            bool opt = false;
+            if(args.ToList().Exists(x => x == "-o")) {
+                len--;
+                opt = true;
+            }
+            switch (len)
             {
                 case 1:
                     {
@@ -27,7 +38,7 @@ namespace BrainFexec
                     }
                 default:
                     {
-                        Console.WriteLine("Usage:\nBrainFExec <input> [output]\nBrainFuck to EXE compiler, compiles BrainFuck into a Windows executable.\ninput: Input file name\nOutput: Output file name, if this argument is not passed and the input file name is 'a.bf', output file name will be 'a.exe'.");
+                        Console.WriteLine("Usage:\nBrainFExec <input> [output] [-o]\nBrainFuck to EXE compiler, compiles BrainFuck into a Windows executable.\ninput: Input file name\noutput: Output file name, if this argument is not passed and the input file name is 'a.bf', output file name will be 'a.exe'.\n-o: Optimize");
                         return;
                     }
             }
@@ -39,41 +50,99 @@ namespace BrainFexec
             param.MainClass = "BF";
             param.GenerateInMemory = true;
             string t = code, brainfuck = "using System;\r\npublic class BF{\r\nprivate static int[] tape=new int[1000000];\r\nprivate static int p=0;\r\nstatic void Main(string[] args){\r\n";
-            for (int i = 0; i < t.Length; i++)
+            if (!opt)
             {
-                if (t[i] == '+')
+                for (int i = 0; i < t.Length; i++)
                 {
-                    brainfuck += "tape[p]=(tape[p]==255?0:tape[p]+1);";
+                    if (t[i] == '+')
+                    {
+                        brainfuck += "tape[p]=(tape[p]==255?0:tape[p]+1);";
+                    }
+                    if (t[i] == '-')
+                    {
+                        brainfuck += "tape[p]=(tape[p]==0?255:tape[p]-1);";
+                    }
+                    if (t[i] == ',')
+                    {
+                        brainfuck += "tape[p]=Console.Read();";
+                    }
+                    if (t[i] == '.')
+                    {
+                        brainfuck += "Console.Write(Convert.ToChar(tape[p]));";
+                    }
+                    if (t[i] == '>')
+                    {
+                        brainfuck += "p++;";
+                    }
+                    if (t[i] == '<')
+                    {
+                        brainfuck += "p--;";
+                    }
+                    if (t[i] == '[')
+                    {
+                        brainfuck += "while(tape[p]!=0){";
+                    }
+                    if (t[i] == ']')
+                    {
+                        brainfuck += "}";
+                    }
+                    brainfuck += "\r\n";
                 }
-                if (t[i] == '-')
+            }
+            else
+            {
+                List<char> tempsymbol = new List<char>();
+                List<int> tempnum = new List<int>();
+                for(int i=0;i<t.Length; i++)
                 {
-                    brainfuck += "tape[p]=(tape[p]==0?255:tape[p]-1);";
+                    char c = t[i];
+                    if (c != '+' && c != '-' && c != '>' && c != '<' && c != ',' && c != '.' && c != '[' && c != ']') continue;
+                    if (tempnum.Count != 0 && (c == '+' || c == '-' || c == '>' || c == '<') && tempsymbol[tempsymbol.Count - 1] == c)
+                    {
+                        tempnum[tempnum.Count - 1]++;
+                    }
+                    else
+                    {
+                        tempnum.Add(1);
+                        tempsymbol.Add(c);
+                    }
                 }
-                if (t[i] == ',')
+                for (int i = 0; i < tempsymbol.Count; i++)
                 {
-                    brainfuck += "tape[p]=Console.Read();";
+                    if (tempsymbol[i] == '+')
+                    {
+                        brainfuck += "tape[p]=(tape[p]+"+Convert.ToString(tempnum[i])+")%256;";
+                    }
+                    if (tempsymbol[i] == '-')
+                    {
+                        brainfuck += "tape[p]=(tape[p]-" + Convert.ToString(tempnum[i]) + "+256)%256;";
+                    }
+                    if (tempsymbol[i] == ',')
+                    {
+                        brainfuck += "tape[p]=Console.Read();";
+                    }
+                    if (tempsymbol[i] == '.')
+                    {
+                        brainfuck += "Console.Write(Convert.ToChar(tape[p]));";
+                    }
+                    if (tempsymbol[i] == '>')
+                    {
+                        brainfuck += "p+=" + Convert.ToString(tempnum[i]) + ";";
+                    }
+                    if (tempsymbol[i] == '<')
+                    {
+                        brainfuck += "p-=" + Convert.ToString(tempnum[i]) + ";";
+                    }
+                    if (tempsymbol[i] == '[')
+                    {
+                        brainfuck += "while(tape[p]!=0){";
+                    }
+                    if (tempsymbol[i] == ']')
+                    {
+                        brainfuck += "}";
+                    }
+                    brainfuck += "\r\n";
                 }
-                if (t[i] == '.')
-                {
-                    brainfuck += "Console.Write(Convert.ToChar(tape[p]));";
-                }
-                if (t[i] == '>')
-                {
-                    brainfuck += "p++;";
-                }
-                if (t[i] == '<')
-                {
-                    brainfuck += "p--;";
-                }
-                if (t[i] == '[')
-                {
-                    brainfuck += "while(tape[p]!=0){";
-                }
-                if (t[i] == ']')
-                {
-                    brainfuck += "}";
-                }
-                brainfuck += "\r\n";
             }
             brainfuck += "}\r\n}";
             CompilerResults result = compiler.CompileAssemblyFromSource(param, brainfuck);
